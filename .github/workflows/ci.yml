@@ -1,3 +1,4 @@
+
 name: OrderFlow CI
 
 on:
@@ -19,7 +20,7 @@ jobs:
         env:
           POSTGRES_DB: orderflow_test
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: root123
+          POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
@@ -46,6 +47,13 @@ jobs:
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/orderflow_test
           SPRING_DATASOURCE_USERNAME: postgres
-          SPRING_DATASOURCE_PASSWORD: root123
+          SPRING_DATASOURCE_PASSWORD: postgres
 
-# Branch protection verification
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-coverage-report
+          path: target/site/jacoco/
+          if-no-files-found: warn
+          retention-days: 14
