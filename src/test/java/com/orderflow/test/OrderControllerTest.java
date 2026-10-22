@@ -51,7 +51,16 @@ class OrderControllerTest {
                 }
                 """;
 
-        assertBadRequest(invalidJson);
+        mockMvc.perform(post("/api/v1/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Request validation failed"))
+                .andExpect(jsonPath("$.validationErrors.customerName").exists());
+
+        verifyNoInteractions(orderService);
     }
 
     // 2. Blank product name
@@ -630,7 +639,11 @@ class OrderControllerTest {
 
 
         mockMvc.perform(get("/api/v1/orders/999"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.message").value("Order not found with id: 999"))
+                .andExpect(jsonPath("$.validationErrors").isEmpty());
 
         //Yeh verify karega ki controller ne service ko 999L ID ke saath call kiya.
         verify(orderService).getOrderById(
@@ -705,6 +718,46 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.totalElements").value(0));
 
         verify(orderService).getAllOrders(any(Pageable.class), eq(OrderStatus.CREATED));
+    }
+
+
+
+    @Test
+    void shouldReturnStandardErrorBodyForPaginationValidation() throws Exception {
+        mockMvc.perform(get("/api/v1/orders").param("size", "51"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Page size must be between 1 and 50"))
+                .andExpect(jsonPath("$.validationErrors").isEmpty());
+
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void shouldReturnStandardErrorBodyForInvalidStatusParameter() throws Exception {
+        mockMvc.perform(get("/api/v1/orders").param("status", "INVALID"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Invalid request parameter: status"))
+                .andExpect(jsonPath("$.validationErrors").isEmpty());
+
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void shouldReturnStandardErrorBodyForMalformedJson() throws Exception {
+        mockMvc.perform(post("/api/v1/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"customerName\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Malformed or invalid request body"))
+                .andExpect(jsonPath("$.validationErrors").isEmpty());
+
+        verifyNoInteractions(orderService);
     }
 
 }
