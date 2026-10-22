@@ -1,3 +1,4 @@
+
 package com.orderflow.service;
 
 import com.orderflow.dto.CreateOrderRequest;
@@ -8,12 +9,12 @@ import com.orderflow.entity.OrderStatus;
 import com.orderflow.exception.OrderNotFoundException;
 import com.orderflow.repository.OrderRepository;
 
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 @Service
 public class OrderService {
@@ -38,12 +39,19 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderResponse> getAllOrders() {
-        return orderRepository
-                .findAll(Sort.by(Sort.Direction.DESC, "createdAt"))
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<OrderResponse> getAllOrders(
+            Pageable pageable,
+            OrderStatus status
+    ) {
+        Page<Order> orders;
+
+        if (status != null) {
+            orders = orderRepository.findByStatus(status, pageable);
+        } else {
+            orders = orderRepository.findAll(pageable);
+        }
+
+        return orders.map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -109,3 +117,9 @@ public class OrderService {
         );
     }
 }
+
+/*Is change se kya hua?
+- Page<OrderResponse> order records ke saath pagination metadata bhi return karta hai.
+- pageable decide karega ki kaunsa page, kitne records aur kis sorting order mein chahiye.
+- status null hua toh saare statuses ke orders milenge; status diya toh sirf matching orders milenge.
+- Page.map() entities ko OrderResponse mein convert karta hai, bina pagination metadata lose kiye.*/

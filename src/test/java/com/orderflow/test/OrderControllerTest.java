@@ -8,10 +8,10 @@ import com.orderflow.dto.UpdateOrderRequest;
 import com.orderflow.entity.OrderStatus;
 import com.orderflow.exception.OrderNotFoundException;
 import com.orderflow.service.OrderService;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.data.domain.*;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -19,9 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -404,27 +402,27 @@ class OrderControllerTest {
     void shouldReturnUpdatedOrderWhenSuccess()
             throws Exception {
 
-       UpdateOrderRequest request= new UpdateOrderRequest("Irshad", "Biryani",
-               10, new BigDecimal(10.00));
+        UpdateOrderRequest request= new UpdateOrderRequest("Irshad", "Biryani",
+                10, new BigDecimal(10.00));
 
 
 
-       OrderResponse response = new OrderResponse(
-               1L,
-               request.customerName(),
-               request.productName(),
-               request.quantity(),
-               request.unitPrice(),
-               request.unitPrice().multiply(
-                       BigDecimal.valueOf(request.quantity())
-               ),
-               OrderStatus.PENDING,
-               LocalDateTime.now(),
-               LocalDateTime.now()
+        OrderResponse response = new OrderResponse(
+                1L,
+                request.customerName(),
+                request.productName(),
+                request.quantity(),
+                request.unitPrice(),
+                request.unitPrice().multiply(
+                        BigDecimal.valueOf(request.quantity())
+                ),
+                OrderStatus.PENDING,
+                LocalDateTime.now(),
+                LocalDateTime.now()
 
 
 
-       );
+        );
 
         when(orderService.updateOrder(
                 eq(1L),
@@ -479,8 +477,8 @@ class OrderControllerTest {
         //Use mockMvc.perform(get(...))
         mockMvc.perform(get("/api/v1/orders/1"))
                 .andExpect(jsonPath("$.id").value(1))
-            .andExpect(jsonPath("$.customerName").value("Irshad"))
-            .andExpect(jsonPath("$.totalPrice").value(1000.00));
+                .andExpect(jsonPath("$.customerName").value("Irshad"))
+                .andExpect(jsonPath("$.totalPrice").value(1000.00));
 
 
         //Verify service was called with 1L
@@ -488,20 +486,10 @@ class OrderControllerTest {
 
     }
 
+
+
     @Test
-    public void shouldReturnOrders() throws Exception
-    {
-        OrderResponse response = new OrderResponse(
-                1L,
-                "Irshad",
-                "Biryani",
-                2,
-                new BigDecimal("500.00"),
-                new BigDecimal("1000.00"),
-                OrderStatus.PENDING,
-                LocalDateTime.now(),
-                LocalDateTime.now()
-        );
+    void shouldReturnOrdersWithPaginationMetadata() throws Exception {
 
         OrderResponse response1 = new OrderResponse(
                 2L,
@@ -515,29 +503,58 @@ class OrderControllerTest {
                 LocalDateTime.now()
         );
 
-        List<OrderResponse> responseList =new ArrayList<>();
-        responseList.add(response1);
-        responseList.add(response);
+        OrderResponse response2 = new OrderResponse(
+                1L,
+                "Irshad",
+                "Biryani",
+                2,
+                new BigDecimal("500.00"),
+                new BigDecimal("1000.00"),
+                OrderStatus.PENDING,
+                LocalDateTime.now(),
+                LocalDateTime.now()
+        );
 
-        //Mock getOrderById(1L) to return response
-        when(orderService.getAllOrders())
-                .thenReturn(responseList);
+        List<OrderResponse> responseList = List.of(
+                response1,
+                response2
+        );
 
-        //Use mockMvc.perform(get(...))
+        Pageable pageable = PageRequest.of(
+                0,
+                10,
+                Sort.by(Sort.Direction.DESC, "createdAt")
+        );
+
+        Page<OrderResponse> responsePage = new PageImpl<>(
+                responseList,
+                pageable,
+                2
+        );
+
+        when(orderService.getAllOrders(
+                any(Pageable.class),
+                isNull()
+        )).thenReturn(responsePage);
+
         mockMvc.perform(get("/api/v1/orders"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].id").value(2))
-                .andExpect(jsonPath("$[0].customerName").value("Alex"))
-                .andExpect(jsonPath("$[0].totalPrice").value(400.00))
-                .andExpect(jsonPath("$[1].id").value(1))
-                .andExpect(jsonPath("$[1].customerName").value("Irshad"))
-                .andExpect(jsonPath("$[1].totalPrice").value(1000.00));
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].id").value(2))
+                .andExpect(jsonPath("$.content[0].customerName").value("Alex"))
+                .andExpect(jsonPath("$.content[1].id").value(1))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.number").value(0));
 
-        //Verify service was called with 1L
-        verify(orderService).getAllOrders();
+        verify(orderService).getAllOrders(
+                any(Pageable.class),
+                isNull()
+        );
     }
+
 
     @Test
     public void shouldReturnOrderStatus() throws Exception {
@@ -620,4 +637,74 @@ class OrderControllerTest {
                 eq(999L)
         );
     }
+
+
+    @Test
+    void shouldRejectNegativePageNumber() throws Exception {
+        mockMvc.perform(get("/api/v1/orders").param("page", "-1"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void shouldRejectPageSizeZero() throws Exception {
+        mockMvc.perform(get("/api/v1/orders").param("size", "0"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void shouldRejectPageSizeGreaterThanMaximum() throws Exception {
+        mockMvc.perform(get("/api/v1/orders").param("size", "51"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void shouldRejectInvalidSortField() throws Exception {
+        mockMvc.perform(get("/api/v1/orders").param("sortBy", "invalidField"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void shouldRejectInvalidSortDirection() throws Exception {
+        mockMvc.perform(get("/api/v1/orders").param("direction", "sideways"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void shouldAcceptValidPaginationSortingAndStatusParameters() throws Exception {
+        Pageable pageable = PageRequest.of(
+                1,
+                5,
+                Sort.by(Sort.Direction.ASC, "customerName")
+        );
+
+        Page<OrderResponse> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+
+        when(orderService.getAllOrders(any(Pageable.class), eq(OrderStatus.CREATED)))
+                .thenReturn(emptyPage);
+
+        mockMvc.perform(get("/api/v1/orders")
+                        .param("page", "1")
+                        .param("size", "5")
+                        .param("sortBy", "customerName")
+                        .param("direction", "asc")
+                        .param("status", "CREATED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.size").value(5))
+                .andExpect(jsonPath("$.number").value(1))
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        verify(orderService).getAllOrders(any(Pageable.class), eq(OrderStatus.CREATED));
+    }
+
 }
