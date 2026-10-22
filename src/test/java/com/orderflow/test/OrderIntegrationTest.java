@@ -210,6 +210,7 @@ class OrderIntegrationTest {
     }
 */
 
+/*
 
     @Test
     void shouldReturnAllOrdersFromDatabase() throws Exception {
@@ -291,6 +292,99 @@ class OrderIntegrationTest {
         assertEquals(600.0, tahariOrder.get("totalPrice").asDouble());
     }
 
+*/
+
+    @Test
+    void shouldReturnAllOrdersFromDatabase() throws Exception {
+
+        // Arrange: Create two orders through the real API
+        String req1 = """
+        {
+            "customerName": "Isolation Test Customer",
+            "productName": "Biryani",
+            "quantity": 2,
+            "unitPrice": 500.00
+        }
+        """;
+
+        String req2 = """
+        {
+            "customerName": "Isolation Test Customer",
+            "productName": "Tahari",
+            "quantity": 2,
+            "unitPrice": 300.00
+        }
+        """;
+
+        MvcResult result1 = mockMvc.perform(
+                        post("/api/v1/orders")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(req1))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        MvcResult result2 = mockMvc.perform(
+                        post("/api/v1/orders")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(req2))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long biryaniId = objectMapper.readTree(
+                        result1.getResponse().getContentAsString())
+                .get("id").asLong();
+
+        long tahariId = objectMapper.readTree(
+                        result2.getResponse().getContentAsString())
+                .get("id").asLong();
+
+        // Act: Retrieve the first page of orders
+        MvcResult getResult = mockMvc.perform(get("/api/v1/orders"))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.number").value(0))
+                .andExpect(jsonPath("$.totalElements").isNumber())
+                .andReturn();
+
+        // Assert: Read orders from the paginated content array
+        JsonNode response = objectMapper.readTree(
+                getResult.getResponse().getContentAsString());
+
+        JsonNode orders = response.path("content");
+
+        JsonNode biryaniOrder = null;
+        JsonNode tahariOrder = null;
+
+        for (JsonNode order : orders) {
+            if (order.path("id").asLong(-1) == biryaniId) {
+                biryaniOrder = order;
+            }
+
+            if (order.path("id").asLong(-1) == tahariId) {
+                tahariOrder = order;
+            }
+        }
+
+        assertNotNull(
+                biryaniOrder,
+                "Biryani order should appear in the first page"
+        );
+
+        assertNotNull(
+                tahariOrder,
+                "Tahari order should appear in the first page"
+        );
+
+        assertEquals("Biryani", biryaniOrder.get("productName").asString());
+        assertEquals(2, biryaniOrder.get("quantity").asInt());
+        assertEquals(1000.0, biryaniOrder.get("totalPrice").asDouble());
+
+        assertEquals("Tahari", tahariOrder.get("productName").asString());
+        assertEquals(2, tahariOrder.get("quantity").asInt());
+        assertEquals(600.0, tahariOrder.get("totalPrice").asDouble());
+    }
 
     @Test
     void shouldUpdateOrderAndVerifyDatabaseChanges() throws Exception {
