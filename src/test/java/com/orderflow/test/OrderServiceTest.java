@@ -252,4 +252,35 @@ class OrderServiceTest {
         verify(orderRepository, never())
                 .findByStatus(any(OrderStatus.class), any(Pageable.class));
     }
+
+    @Test
+    void shouldRecalculateTotalPriceWhenOrderIsUpdated() {
+        Order existingOrder = new Order(
+                "Irshad",
+                "Biryani",
+                2,
+                new BigDecimal("150.00")
+        );
+
+        UpdateOrderRequest request = new UpdateOrderRequest(
+                "Irshad",
+                "Biryani",
+                3,
+                new BigDecimal("200.00")
+        );
+
+        when(orderRepository.findById(1L))
+                .thenReturn(Optional.of(existingOrder));
+
+        when(orderRepository.save(any(Order.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderResponse response = orderService.updateOrder(1L, request);
+
+        assertEquals(3, response.quantity());
+        assertEquals(new BigDecimal("200.00"), response.unitPrice());
+        assertEquals(new BigDecimal("600.00"), response.totalPrice());
+
+        verify(orderRepository).save(existingOrder);
+    }
 }

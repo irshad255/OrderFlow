@@ -760,4 +760,49 @@ class OrderControllerTest {
         verifyNoInteractions(orderService);
     }
 
+
+    @Test
+    void shouldReturnBadRequestWhenUpdatingOrderWithNegativeUnitPrice()
+            throws Exception {
+
+        String invalidJson = """
+            {
+                "customerName": "Irshad",
+                "productName": "Biryani",
+                "quantity": 2,
+                "unitPrice": -50.00
+            }
+            """;
+
+        mockMvc.perform(put("/api/v1/orders/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidJson))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenUpdatingOrderWithZeroQuantity()
+            throws Exception {
+
+        String invalidJson = """
+            {
+                "customerName": "Irshad",
+                "productName": "Biryani",
+                "quantity": 0,
+                "unitPrice": 500.00
+            }
+            """;
+
+        mockMvc.perform(put("/api/v1/orders/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidJson))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(orderService);
+    }
+
+
+
 }
