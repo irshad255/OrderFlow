@@ -2,6 +2,7 @@ package com.orderflow.test;
 
 import jakarta.persistence.EntityManager;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.dao.DataIntegrityViolationException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -16,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -597,8 +599,82 @@ class OrderIntegrationTest {
         assertNotNull(response.getBody());
     }
 
+    @Test
+    void shouldRejectOrderWhenQuantityIsZeroAtDatabaseLevel() {
+        Order order = new Order(
+                "Constraint Test",
+                "Biryani",
+                0,
+                new BigDecimal("100.00")
+        );
+
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> {
+                    orderRepository.saveAndFlush(order);
+                }
+        );
+    }
+
+    @Test
+    void shouldRejectOrderWhenQuantityBelowMinimumAtDatabaseLevel() {
+        Order order = new Order(
+                "Constraint Test",
+                "Biryani",
+                -99,
+                new BigDecimal("100.00")
+        );
+
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> orderRepository.saveAndFlush(order)
+        );
+    }
+
+    @Test
+    void shouldRejectOrderWhenQuantityExceedsMaximumAtDatabaseLevel() {
+        Order order = new Order(
+                "Constraint Test",
+                "Biryani",
+                100001,
+                new BigDecimal("100.00")
+        );
+
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> orderRepository.saveAndFlush(order)
+        );
+    }
+
+    @Test
+    void shouldRejectOrderWhenUnitPriceIsNegativeAtDatabaseLevel() {
+        Order order = new Order(
+                "Constraint Test",
+                "Biryani",
+                2,
+                new BigDecimal("-50.00")
+        );
+
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> orderRepository.saveAndFlush(order)
+        );
+    }
 
 
 
+    @Test
+    void shouldRejectOrderWhenUnitPriceZeroAtDatabaseLevel() {
+        Order order = new Order(
+                "Constraint Test",
+                "Biryani",
+                2,
+                new BigDecimal("0.0")
+        );
 
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> orderRepository.saveAndFlush(order)
+        );
+    }
 }
