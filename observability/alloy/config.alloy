@@ -1,0 +1,22 @@
+local.file_match "orderflow_logs" {
+  path_targets = [
+    {
+      "__path__" = "/var/log/orderflow/*.log",
+      "job"      = "orderflow",
+      "service"  = "orderflow",
+    },
+  ]
+
+  sync_period = "5s"
+}
+
+loki.source.file "orderflow_logs" {
+  targets    = local.file_match.orderflow_logs.targets
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
